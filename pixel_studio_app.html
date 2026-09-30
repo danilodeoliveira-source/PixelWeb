@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Studio Web</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Essential for crisp pixel rendering */
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .checkerboard {
+            background-color: #1e293b;
+            background-image: 
+                linear-gradient(45deg, #0f172a 25%, transparent 25%), 
+                linear-gradient(-45deg, #0f172a 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #0f172a 75%), 
+                linear-gradient(-45deg, transparent 75%, #0f172a 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .tool-btn.active {
+            background-color: #4f46e5;
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(79, 70, 229, 0.4);
+        }
+
+        .frame-card.active {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px #6366f1;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header / Top Bar -->
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between z-10 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="bg-gradient-to-tr from-indigo-600 to-violet-500 p-2 rounded-lg text-white shadow-lg">
+                <i class="fa-solid font-bold fa-border-all text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide bg-gradient-to-r from-indigo-400 to-violet-300 bg-clip-text text-transparent">
+                    Pixel Studio Web
+                </h1>
+                <p class="text-xs text-slate-400">Editor e Animação Pixel Art</p>
+            </div>
+        </div>
+
+        <!-- Canvas Controls -->
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 bg-slate-800 p-1 rounded-lg border border-slate-700">
+                <span class="text-xs text-slate-400 pl-2 font-medium">Tamanho:</span>
+                <button onclick="setGridSize(16)" id="btn-grid-16" class="px-2.5 py-1 text-xs font-semibold rounded bg-indigo-600 text-white transition">16x16</button>
+                <button onclick="setGridSize(32)" id="btn-grid-32" class="px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white transition">32x32</button>
+                <button onclick="setGridSize(64)" id="btn-grid-64" class="px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white transition">64x64</button>
+            </div>
+
+            <button id="toggle-grid-btn" onclick="toggleGrid()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-medium flex items-center space-x-2 transition">
+                <i class="fa-solid fa-table-cells text-indigo-400"></i>
+                <span>Grelha: <strong id="grid-status-text" class="text-emerald-400">ON</strong></span>
+            </button>
+        </div>
+
+        <!-- Export Action Buttons -->
+        <div class="flex items-center space-x-2">
+            <button onclick="exportFrame()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 rounded-lg text-xs font-semibold flex items-center space-x-2 transition">
+                <i class="fa-solid fa-download"></i>
+                <span>PNG Quadro</span>
+            </button>
+            <button onclick="exportSpriteSheet()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-2 shadow-lg shadow-indigo-600/30 transition">
+                <i class="fa-solid fa-file-image"></i>
+                <span>Sprite Sheet</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Editor Body -->
+    <div class="flex flex-1 overflow-hidden relative">
+
+        <!-- Left Toolbar (Tools) -->
+        <aside class="w-16 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 space-y-3 z-10 shrink-0">
+            <button onclick="selectTool('pencil')" id="tool-pencil" class="tool-btn active w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition" title="Lápis">
+                <i class="fa-solid fa-pencil text-base"></i>
+            </button>
+            <button onclick="selectTool('eraser')" id="tool-eraser" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition" title="Borracha">
+                <i class="fa-solid fa-eraser text-base"></i>
+            </button>
+            <button onclick="selectTool('bucket')" id="tool-bucket" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition" title="Preenchimento (Balde)">
+                <i class="fa-solid fa-fill-drip text-base"></i>
+            </button>
+            <button onclick="selectTool('eyedropper')" id="tool-eyedropper" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition" title="Conta-Gotas">
+                <i class="fa-solid fa-eye-dropper text-base"></i>
+            </button>
+
+            <div class="w-8 h-[1px] bg-slate-800 my-1"></div>
+
+            <button onclick="undo()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition" title="Desfazer (Ctrl+Z)">
+                <i class="fa-solid fa-rotate-left text-base"></i>
+            </button>
+            <button onclick="redo()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition" title="Refazer (Ctrl+Y)">
+                <i class="fa-solid fa-rotate-right text-base"></i>
+            </button>
+            <button onclick="clearCanvas()" class="w-10 h-10 rounded-xl bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 border border-rose-800/40 flex items-center justify-center transition" title="Limpar Quadro">
+                <i class="fa-solid fa-trash-can text-base"></i>
+            </button>
+        </aside>
+
+        <!-- Center Workspace (Canvas Viewport) -->
+        <main class="flex-1 bg-slate-950 flex items-center justify-center p-4 relative overflow-auto checkerboard" id="workspace">
+            <div class="relative shadow-2xl rounded-lg overflow-hidden border-2 border-slate-700/60">
+                <canvas id="pixelCanvas" class="cursor-crosshair block bg-transparent"></canvas>
+            </div>
+        </main>
+
+        <!-- Right Sidebar (Color Palettes & Picker) -->
+        <aside class="w-64 bg-slate-900 border-l border-slate-800 flex flex-col p-4 space-y-4 z-10 shrink-0 overflow-y-auto">
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Cor Ativa</h3>
+                <div class="flex items-center space-x-3 bg-slate-800 p-2 rounded-xl border border-slate-700">
+                    <input type="color" id="customColorPicker" value="#3b82f6" class="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent p-0">
+                    <div class="flex-1">
+                        <div id="colorHexText" class="text-sm font-mono font-semibold text-slate-200">#3B82F6</div>
+                        <div class="text-[10px] text-slate-400">Clique para personalizar</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Palettes -->
+            <div class="flex-1">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Paletas Retro</h3>
+                    <select id="paletteSelect" onchange="changePalette(this.value)" class="bg-slate-800 text-slate-300 text-xs rounded border border-slate-700 px-2 py-1 outline-none">
+                        <option value="pico8">PICO-8 (16)</option>
+                        <option value="gameboy">GameBoy (4)</option>
+                        <option value="cyberpunk">Cyberpunk (12)</option>
+                        <option value="nes">Classic NES (16)</option>
+                    </select>
+                </div>
+                
+                <div id="paletteContainer" class="grid grid-cols-4 gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <!-- Palette colors injected via JS -->
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Bottom Timeline / Animation Panel -->
+    <footer class="h-44 bg-slate-900 border-t border-slate-800 flex flex-col z-10 shrink-0">
+        <!-- Timeline Controls Header -->
+        <div class="px-4 py-2 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/90">
+            <div class="flex items-center space-x-3">
+                <button id="playBtn" onclick="togglePlay()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center space-x-2 shadow-lg shadow-emerald-600/20 transition">
+                    <i class="fa-solid fa-play" id="playIcon"></i>
+                    <span id="playText">Reproduzir</span>
+                </button>
+
+                <div class="h-4 w-[1px] bg-slate-800"></div>
+
+                <!-- FPS Slider -->
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs text-slate-400 font-medium">FPS:</span>
+                    <input type="range" id="fpsSlider" min="1" max="24" value="8" oninput="updateFPS(this.value)" class="w-24 accent-indigo-500 cursor-pointer">
+                    <span id="fpsVal" class="text-xs font-mono text-indigo-400 font-bold w-6">8</span>
+                </div>
+
+                <div class="h-4 w-[1px] bg-slate-800"></div>
+
+                <!-- Onion Skin Toggle -->
+                <button id="onionBtn" onclick="toggleOnionSkin()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-clone text-amber-400"></i>
+                    <span>Onion Skin: <strong id="onionStatusText" class="text-slate-500">OFF</strong></span>
+                </button>
+            </div>
+
+            <!-- Frame Actions -->
+            <div class="flex items-center space-x-2">
+                <button onclick="addFrame()" class="px-3 py-1.5 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Novo Quadro</span>
+                </button>
+                <button onclick="duplicateFrame()" class="px-3 py-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-copy"></i>
+                    <span>Duplicar</span>
+                </button>
+                <button onclick="deleteFrame()" class="px-3 py-1.5 bg-rose-950/30 text-rose-400 hover:bg-rose-900/40 border border-rose-800/40 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-trash"></i>
+                    <span>Eliminar</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Frame Strip / Thumbnails Container -->
+        <div id="timelineStrip" class="flex-1 p-3 flex items-center space-x-3 overflow-x-auto bg-slate-950/50">
+            <!-- Frame Cards injected dynamically via JavaScript -->
+        </div>
+    </footer>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-48 right-6 bg-slate-800 border border-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-medium shadow-2xl transition opacity-0 pointer-events-none z-50 flex items-center space-x-2">
+        <i class="fa-solid fa-circle-info text-indigo-400"></i>
+        <span id="toastMsg">Mensagem</span>
+    </div>
+
+    <script>
+        // Core State
+        let gridSize = 16;
+        let currentColor = '#3b82f6';
+        let currentTool = 'pencil';
+        let showGrid = true;
+        let onionSkin = false;
+        let fps = 8;
+        let isPlaying = false;
+        let playInterval = null;
+        let isMouseDown = false;
+
+        // Frame Data Structure: Array of 1D pixel arrays (hex strings or null)
+        let frames = [];
+        let currentFrameIndex = 0;
+
+        // Undo / Redo Stacks
+        let undoStack = [];
+        let redoStack = [];
+        const MAX_STACK = 20;
+
+        // Palettes Data
+        const PALETTES = {
+            pico8: ['#000000', '#1D2B53', '#7E2553', '#008751', '#AB5236', '#5F574F', '#C2C3C7', '#FFF1E8', '#FF004D', '#FFA300', '#FFEC27', '#00E436', '#29ADFF', '#83769C', '#FF77A8', '#FFCCAA'],
+            gameboy: ['#0f380f', '#306230', '#8bac0f', '#9bbc0f'],
+            cyberpunk: ['#08091a', '#1a0b2e', '#431259', '#7a1c72', '#be236a', '#e6475a', '#f78363', '#f2ca6b', '#00f0ff', '#00a8ff', '#7000ff', '#ff0077'],
+            nes: ['#7C7C7C', '#0000FC', '#0000BC', '#4428BC', '#940084', '#A80020', '#A81000', '#881400', '#503000', '#007800', '#006800', '#005800', '#004058', '#000000', '#FFFFFF', '#ECECEC']
+        };
+
+        // DOM Elements
+        const canvas = document.getElementById('pixelCanvas');
+        const ctx = canvas.getContext('2d');
+        const customColorPicker = document.getElementById('customColorPicker');
+        const colorHexText = document.getElementById('colorHexText');
+        const timelineStrip = document.getElementById('timelineStrip');
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initApp();
+            
+            // Canvas Mouse/Touch Events
+            canvas.addEventListener('mousedown', handlePointerDown);
+            canvas.addEventListener('mousemove', handlePointerMove);
+            window.addEventListener('mouseup', handlePointerUp);
+
+            canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+            canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
+            window.addEventListener('touchend', handlePointerUp);
+
+            // Color picker change
+            customColorPicker.addEventListener('input', (e) => {
+                currentColor = e.target.value;
+                colorHexText.textContent = currentColor.toUpperCase();
+            });
+
+            // Keyboard Shortcuts
+            window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT') return;
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                    e.preventDefault();
+                    undo();
+                } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                    e.preventDefault();
+                    redo();
+                } else if (e.key.toLowerCase() === 'b') selectTool('pencil');
+                else if (e.key.toLowerCase() === 'e') selectTool('eraser');
+                else if (e.key.toLowerCase() === 'g') selectTool('bucket');
+                else if (e.key.toLowerCase() === 'i') selectTool('eyedropper');
+                else if (e.code === 'Space') {
+                    e.preventDefault();
+                    togglePlay();
+                }
+            });
+        });
+
+        function initApp() {
+            // Create first initial frame
+            frames = [createEmptyFrameData()];
+            currentFrameIndex = 0;
+            loadPalette('pico8');
+            updateCanvasDimensions();
+            render();
+            updateTimelineUI();
+        }
+
+        function createEmptyFrameData() {
+            return new Array(gridSize * gridSize).fill(null);
+        }
+
+        function setGridSize(size) {
+            if (gridSize === size) return;
+            gridSize = size;
+
+            // Update UI buttons
+            [16, 32, 64].forEach(s => {
+                const btn = document.getElementById(`btn-grid-${s}`);
+                if (s === size) {
+                    btn.className = "px-2.5 py-1 text-xs font-semibold rounded bg-indigo-600 text-white transition";
+                } else {
+                    btn.className = "px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white transition";
+                }
+            });
+
+            // Re-initialize frames to new dimension
+            frames = [createEmptyFrameData()];
+            currentFrameIndex = 0;
+            undoStack = [];
+            redoStack = [];
+
+            updateCanvasDimensions();
+            render();
+            updateTimelineUI();
+            showToast(`Tamanho alterado para ${size}x${size}`);
+        }
+
+        function updateCanvasDimensions() {
+            // Display dimensions (e.g. 480x480 screen area)
+            const displaySize = 480;
+            canvas.width = displaySize;
+            canvas.height = displaySize;
+            render();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const pixelSize = canvas.width / gridSize;
+
+            // 1. Render Onion Skin (Previous Frame)
+            if (onionSkin && currentFrameIndex > 0 && !isPlaying) {
+                const prevFrame = frames[currentFrameIndex - 1];
+                ctx.globalAlpha = 0.3;
+                for (let y = 0; y < gridSize; y++) {
+                    for (let x = 0; x < gridSize; x++) {
+                        const color = prevFrame[y * gridSize + x];
+                        if (color) {
+                            ctx.fillStyle = color;
+                            ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+                        }
+                    }
+                }
+                ctx.globalAlpha = 1.0;
+            }
+
+            // 2. Render Current Active Frame
+            const currentFrame = frames[currentFrameIndex];
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const color = currentFrame[y * gridSize + x];
+                    if (color) {
+                        ctx.fillStyle = color;
+                        ctx.fillRect(Math.floor(x * pixelSize), Math.floor(y * pixelSize), Math.ceil(pixelSize), Math.ceil(pixelSize));
+                    }
+                }
+            }
+
+            // 3. Render Grid Overlay
+            if (showGrid && pixelSize >= 6) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i <= gridSize; i++) {
+                    const pos = Math.floor(i * pixelSize);
+                    // Vertical lines
+                    ctx.moveTo(pos, 0);
+                    ctx.lineTo(pos, canvas.height);
+                    // Horizontal lines
+                    ctx.moveTo(0, pos);
+                    ctx.lineTo(canvas.width, pos);
+                }
+                ctx.stroke();
+            }
+        }
+
+        function getPixelCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const canvasX = (clientX - rect.left) * scaleX;
+            const canvasY = (clientY - rect.top) * scaleY;
+
+            const pixelSize = canvas.width / gridSize;
+            const x = Math.floor(canvasX / pixelSize);
+            const y = Math.floor(canvasY / pixelSize);
+
+            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+                return { x, y };
+            }
+            return null;
+        }
+
+        function handlePointerDown(e) {
+            if (isPlaying) return;
+            e.preventDefault();
+            isMouseDown = true;
+            saveStateToUndo();
+
+            const coords = getPixelCoords(e);
+            if (coords) {
+                applyTool(coords.x, coords.y);
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (!isMouseDown || isPlaying) return;
+            e.preventDefault();
+
+            const coords = getPixelCoords(e);
+            if (coords) {
+                // Eyedropper and Bucket don't continuous draw on drag
+                if (currentTool === 'pencil' || currentTool === 'eraser') {
+                    applyTool(coords.x, coords.y);
+                }
+            }
+        }
+
+        function handlePointerUp() {
+            if (isMouseDown) {
+                isMouseDown = false;
+                updateCurrentFrameThumbnail();
+            }
+        }
+
+        function applyTool(x, y) {
+            const index = y * gridSize + x;
+            const frame = frames[currentFrameIndex];
+
+            if (currentTool === 'pencil') {
+                if (frame[index] !== currentColor) {
+                    frame[index] = currentColor;
+                    render();
+                }
+            } else if (currentTool === 'eraser') {
+                if (frame[index] !== null) {
+                    frame[index] = null;
+                    render();
+                }
+            } else if (currentTool === 'bucket') {
+                const targetColor = frame[index];
+                if (targetColor !== currentColor) {
+                    floodFill(x, y, targetColor, currentColor);
+                    render();
+                }
+            } else if (currentTool === 'eyedropper') {
+                const pickedColor = frame[index];
+                if (pickedColor) {
+                    currentColor = pickedColor;
+                    customColorPicker.value = currentColor;
+                    colorHexText.textContent = currentColor.toUpperCase();
+                    selectTool('pencil');
+                    showToast(`Cor selecionada: ${currentColor}`);
+                }
+            }
+        }
+
+        // BFS Flood Fill Algorithm
+        function floodFill(startX, startY, targetColor, replacementColor) {
+            const frame = frames[currentFrameIndex];
+            const queue = [[startX, startY]];
+            const visited = new Set();
+
+            while (queue.length > 0) {
+                const [x, y] = queue.shift();
+                const key = `${x},${y}`;
+
+                if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) continue;
+                if (visited.has(key)) continue;
+                visited.add(key);
+
+                const idx = y * gridSize + x;
+                if (frame[idx] === targetColor) {
+                    frame[idx] = replacementColor;
+
+                    queue.push([x + 1, y]);
+                    queue.push([x - 1, y]);
+                    queue.push([x, y + 1]);
+                    queue.push([x, y - 1]);
+                }
+            }
+        }
+
+        function selectTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tool-${tool}`).classList.add('active');
+        }
+
+        function saveStateToUndo() {
+            // Save deep clone of current frames
+            const snapshot = frames.map(f => [...f]);
+            undoStack.push({
+                frames: snapshot,
+                frameIndex: currentFrameIndex
+            });
+            if (undoStack.length > MAX_STACK) undoStack.shift();
+            redoStack = []; // Clear redo on new action
+        }
+
+        function undo() {
+            if (undoStack.length === 0) return;
+            const snapshot = frames.map(f => [...f]);
+            redoStack.push({
+                frames: snapshot,
+                frameIndex: currentFrameIndex
+            });
+
+            const lastState = undoStack.pop();
+            frames = lastState.frames;
+            currentFrameIndex = Math.min(lastState.frameIndex, frames.length - 1);
+
+            render();
+            updateTimelineUI();
+            showToast("Ação desfeita");
+        }
+
+        function redo() {
+            if (redoStack.length === 0) return;
+            const snapshot = frames.map(f => [...f]);
+            undoStack.push({
+                frames: snapshot,
+                frameIndex: currentFrameIndex
+            });
+
+            const nextState = redoStack.pop();
+            frames = nextState.frames;
+            currentFrameIndex = Math.min(nextState.frameIndex, frames.length - 1);
+
+            render();
+            updateTimelineUI();
+            showToast("Ação refeita");
+        }
+
+        function clearCanvas() {
+            saveStateToUndo();
+            frames[currentFrameIndex] = createEmptyFrameData();
+            render();
+            updateTimelineUI();
+            showToast("Quadro limpo");
+        }
+
+        function addFrame() {
+            saveStateToUndo();
+            const newFrame = createEmptyFrameData();
+            frames.splice(currentFrameIndex + 1, 0, newFrame);
+            currentFrameIndex++;
+            render();
+            updateTimelineUI();
+            showToast("Novo quadro adicionado");
+        }
+
+        function duplicateFrame() {
+            saveStateToUndo();
+            const duplicated = [...frames[currentFrameIndex]];
+            frames.splice(currentFrameIndex + 1, 0, duplicated);
+            currentFrameIndex++;
+            render();
+            updateTimelineUI();
+            showToast("Quadro duplicado");
+        }
+
+        function deleteFrame() {
+            if (frames.length <= 1) {
+                showToast("Não é possível eliminar o único quadro!");
+                return;
+            }
+            saveStateToUndo();
+            frames.splice(currentFrameIndex, 1);
+            if (currentFrameIndex >= frames.length) {
+                currentFrameIndex = frames.length - 1;
+            }
+            render();
+            updateTimelineUI();
+            showToast("Quadro eliminado");
+        }
+
+        function selectFrame(index) {
+            currentFrameIndex = index;
+            render();
+            updateTimelineUI();
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            const playBtn = document.getElementById('playBtn');
+            const playIcon = document.getElementById('playIcon');
+            const playText = document.getElementById('playText');
+
+            if (isPlaying) {
+                playBtn.className = "px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold flex items-center space-x-2 shadow-lg shadow-amber-600/20 transition";
+                playIcon.className = "fa-solid fa-pause";
+                playText.textContent = "Pausar";
+
+                playInterval = setInterval(() => {
+                    currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+                    render();
+                    updateTimelineUI(false); // Update without scrolling
+                }, 1000 / fps);
+            } else {
+                clearInterval(playInterval);
+                playBtn.className = "px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center space-x-2 shadow-lg shadow-emerald-600/20 transition";
+                playIcon.className = "fa-solid fa-play";
+                playText.textContent = "Reproduzir";
+                render();
+            }
+        }
+
+        function updateFPS(val) {
+            fps = parseInt(val);
+            document.getElementById('fpsVal').textContent = fps;
+            if (isPlaying) {
+                clearInterval(playInterval);
+                playInterval = setInterval(() => {
+                    currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+                    render();
+                    updateTimelineUI(false);
+                }, 1000 / fps);
+            }
+        }
+
+        function toggleGrid() {
+            showGrid = !showGrid;
+            document.getElementById('grid-status-text').textContent = showGrid ? 'ON' : 'OFF';
+            document.getElementById('grid-status-text').className = showGrid ? 'text-emerald-400' : 'text-slate-500';
+            render();
+        }
+
+        function toggleOnionSkin() {
+            onionSkin = !onionSkin;
+            document.getElementById('onionStatusText').textContent = onionSkin ? 'ON' : 'OFF';
+            document.getElementById('onionStatusText').className = onionSkin ? 'text-amber-400' : 'text-slate-500';
+            render();
+        }
+
+        function updateTimelineUI(autoScroll = true) {
+            timelineStrip.innerHTML = '';
+
+            frames.forEach((frameData, idx) => {
+                const card = document.createElement('div');
+                card.className = `frame-card border-2 ${idx === currentFrameIndex ? 'active border-indigo-500 bg-slate-800' : 'border-slate-800 bg-slate-900'} hover:border-slate-700 rounded-xl p-1.5 flex flex-col items-center cursor-pointer transition shrink-0 group relative`;
+                card.onclick = () => selectFrame(idx);
+
+                // Mini thumbnail canvas
+                const thumbCanvas = document.createElement('canvas');
+                thumbCanvas.width = 64;
+                thumbCanvas.height = 64;
+                thumbCanvas.className = "rounded bg-slate-950 checkerboard mb-1 pointer-events-none";
+
+                // Draw frame to mini canvas
+                const thumbCtx = thumbCanvas.getContext('2d');
+                const pixelSize = 64 / gridSize;
+                for (let y = 0; y < gridSize; y++) {
+                    for (let x = 0; x < gridSize; x++) {
+                        const col = frameData[y * gridSize + x];
+                        if (col) {
+                            thumbCtx.fillStyle = col;
+                            thumbCtx.fillRect(Math.floor(x * pixelSize), Math.floor(y * pixelSize), Math.ceil(pixelSize), Math.ceil(pixelSize));
+                        }
+                    }
+                }
+
+                const label = document.createElement('span');
+                label.className = "text-[10px] font-mono text-slate-400 group-hover:text-slate-200";
+                label.textContent = `#${idx + 1}`;
+
+                card.appendChild(thumbCanvas);
+                card.appendChild(label);
+                timelineStrip.appendChild(card);
+
+                if (idx === currentFrameIndex && autoScroll) {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+            });
+        }
+
+        function updateCurrentFrameThumbnail() {
+            updateTimelineUI(false);
+        }
+
+        function loadPalette(key) {
+            const colors = PALETTES[key] || PALETTES.pico8;
+            const container = document.getElementById('paletteContainer');
+            container.innerHTML = '';
+
+            colors.forEach(col => {
+                const swatch = document.createElement('button');
+                swatch.className = "w-full h-8 rounded-lg border border-slate-700 hover:scale-105 transition transform shadow-sm";
+                swatch.style.backgroundColor = col;
+                swatch.onclick = () => {
+                    currentColor = col;
+                    customColorPicker.value = col;
+                    colorHexText.textContent = col.toUpperCase();
+                };
+                container.appendChild(swatch);
+            });
+        }
+
+        function changePalette(key) {
+            loadPalette(key);
+        }
+
+        function exportFrame() {
+            const exportCanvas = document.createElement('canvas');
+            const targetSize = 512; // Export high-res scaled crisp PNG
+            exportCanvas.width = targetSize;
+            exportCanvas.height = targetSize;
+            const expCtx = exportCanvas.getContext('2d');
+            expCtx.imageSmoothingEnabled = false;
+
+            const pixelSize = targetSize / gridSize;
+            const currentFrame = frames[currentFrameIndex];
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const color = currentFrame[y * gridSize + x];
+                    if (color) {
+                        expCtx.fillStyle = color;
+                        expCtx.fillRect(Math.floor(x * pixelSize), Math.floor(y * pixelSize), Math.ceil(pixelSize), Math.ceil(pixelSize));
+                    }
+                }
+            }
+
+            const link = document.createElement('a');
+            link.download = `pixel-art-frame-${currentFrameIndex + 1}.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+            showToast("Quadro PNG descarregado!");
+        }
+
+        function exportSpriteSheet() {
+            const exportCanvas = document.createElement('canvas');
+            const frameResolution = 64; // Size of each frame in spritesheet
+            exportCanvas.width = frameResolution * frames.length;
+            exportCanvas.height = frameResolution;
+            const expCtx = exportCanvas.getContext('2d');
+            expCtx.imageSmoothingEnabled = false;
+
+            const pixelSize = frameResolution / gridSize;
+
+            frames.forEach((frame, fIdx) => {
+                const offsetX = fIdx * frameResolution;
+                for (let y = 0; y < gridSize; y++) {
+                    for (let x = 0; x < gridSize; x++) {
+                        const color = frame[y * gridSize + x];
+                        if (color) {
+                            expCtx.fillStyle = color;
+                            expCtx.fillRect(Math.floor(offsetX + x * pixelSize), Math.floor(y * pixelSize), Math.ceil(pixelSize), Math.ceil(pixelSize));
+                        }
+                    }
+                }
+            });
+
+            const link = document.createElement('a');
+            link.download = `spritesheet-${frames.length}frames.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+            showToast("Sprite Sheet descarregada com sucesso!");
+        }
+
+        // Toast Helper
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
