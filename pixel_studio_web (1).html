@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Studio Web - Editor de Pixel Art</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Pixel art canvas canvas checkerboard background */
+        .checkerboard {
+            background-color: #1e293b;
+            background-image: 
+                linear-gradient(45deg, #0f172a 25%, transparent 25%), 
+                linear-gradient(-45deg, #0f172a 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #0f172a 75%), 
+                linear-gradient(-45deg, transparent 75%, #0f172a 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* Render pixelated crisp canvas without anti-aliasing */
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            touch-action: none;
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Tool active ring & animation */
+        .tool-btn.active {
+            background-color: #3b82f6 !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+        }
+
+        .palette-swatch {
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+        .palette-swatch:hover {
+            transform: scale(1.15);
+            z-index: 10;
+        }
+        .palette-swatch.selected {
+            ring: 2px;
+            box-shadow: 0 0 0 2px #38bdf8;
+        }
+
+        /* Range slider customization */
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- TOP NAVBAR -->
+    <header class="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between z-20 shrink-0">
+        <!-- Logo & Title -->
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                <i class="fa-solid fa-border-all text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm tracking-wide text-slate-100 leading-tight">Pixel Studio Web</h1>
+                <p class="text-[10px] text-slate-400">Editor e Estúdio de Animação em Pixel Art</p>
+            </div>
+        </div>
+
+        <!-- Canvas Grid Size Selector -->
+        <div class="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-1 space-x-1">
+            <span class="text-xs text-slate-400 px-2 font-medium">Tamanho:</span>
+            <button onclick="setGridSize(16)" id="size-16" class="px-2.5 py-1 text-xs font-semibold rounded-md transition-colors hover:bg-slate-800 text-slate-300">16x16</button>
+            <button onclick="setGridSize(32)" id="size-32" class="px-2.5 py-1 text-xs font-semibold rounded-md transition-colors hover:bg-slate-800 text-slate-300">32x32</button>
+            <button onclick="setGridSize(64)" id="size-64" class="px-2.5 py-1 text-xs font-semibold rounded-md transition-colors hover:bg-slate-800 text-slate-300">64x64</button>
+        </div>
+
+        <!-- Grid Toggle & Export Actions -->
+        <div class="flex items-center space-x-3">
+            <button id="toggle-grid-btn" onclick="toggleGrid()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition">
+                <i class="fa-solid fa-grid-2 text-indigo-400"></i>
+                <span id="grid-status-text">Grade: ON</span>
+            </button>
+
+            <div class="h-4 w-[1px] bg-slate-800"></div>
+
+            <button onclick="exportPNG()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg shadow-sm shadow-indigo-600/30 transition">
+                <i class="fa-solid fa-download"></i>
+                <span>Baixar PNG</span>
+            </button>
+
+            <button onclick="exportSpriteSheet()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg shadow-sm shadow-purple-600/30 transition">
+                <i class="fa-solid fa-table-cells"></i>
+                <span>Sprite Sheet</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- LEFT TOOLBAR -->
+        <aside class="w-14 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-3 space-y-2 z-10 shrink-0">
+            <!-- Pencil Tool -->
+            <button onclick="setTool('pencil')" id="tool-pencil" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition group relative" title="Lápis (Interpolação contínua)">
+                <i class="fa-solid fa-pencil text-sm"></i>
+            </button>
+
+            <!-- Eraser Tool -->
+            <button onclick="setTool('eraser')" id="tool-eraser" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition group relative" title="Borracha">
+                <i class="fa-solid fa-eraser text-sm"></i>
+            </button>
+
+            <!-- Bucket Fill -->
+            <button onclick="setTool('bucket')" id="tool-bucket" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition group relative" title="Preenchimento (Balde)">
+                <i class="fa-solid fa-fill-drip text-sm"></i>
+            </button>
+
+            <!-- Eyedropper -->
+            <button onclick="setTool('eyedropper')" id="tool-eyedropper" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition group relative" title="Conta-gotas">
+                <i class="fa-solid fa-eye-dropper text-sm"></i>
+            </button>
+
+            <!-- Selection Tool -->
+            <button onclick="setTool('select')" id="tool-select" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition group relative" title="Seleção Retangular">
+                <i class="fa-solid fa-vector-square text-sm"></i>
+            </button>
+
+            <div class="w-8 h-[1px] bg-slate-800 my-1"></div>
+
+            <!-- Undo -->
+            <button onclick="undo()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition active:scale-95" title="Desfazer (Ctrl+Z)">
+                <i class="fa-solid fa-rotate-left text-sm"></i>
+            </button>
+
+            <!-- Redo -->
+            <button onclick="redo()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition active:scale-95" title="Refazer (Ctrl+Y)">
+                <i class="fa-solid fa-rotate-right text-sm"></i>
+            </button>
+
+            <!-- Clear Canvas -->
+            <button onclick="clearCanvasPrompt()" class="w-10 h-10 rounded-xl bg-slate-800 text-rose-400 hover:bg-rose-500/20 flex items-center justify-center transition active:scale-95" title="Limpar Quadro">
+                <i class="fa-solid fa-trash-can text-sm"></i>
+            </button>
+        </aside>
+
+        <!-- CANVAS CENTER WORKSPACE -->
+        <main class="flex-1 bg-slate-950 flex items-center justify-center p-4 relative overflow-auto select-none">
+            <div id="canvas-container" class="relative shadow-2xl rounded-lg overflow-hidden checkerboard border border-slate-800 flex items-center justify-center">
+                <!-- Main Interactive Pixel Canvas -->
+                <canvas id="pixelCanvas" class="cursor-crosshair block"></canvas>
+            </div>
+
+            <!-- Selection floating toolbar (visible when selection active) -->
+            <div id="selection-toolbar" class="hidden absolute top-6 bg-slate-900 border border-slate-700 shadow-xl rounded-xl p-1.5 flex items-center space-x-2 z-30">
+                <button onclick="copySelection()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded-md flex items-center space-x-1">
+                    <i class="fa-solid fa-copy"></i> <span>Copiar</span>
+                </button>
+                <button onclick="cutSelection()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded-md flex items-center space-x-1">
+                    <i class="fa-solid fa-scissors"></i> <span>Recortar</span>
+                </button>
+                <button onclick="deleteSelection()" class="px-2.5 py-1 bg-rose-900/50 hover:bg-rose-800/80 text-xs text-rose-200 rounded-md flex items-center space-x-1">
+                    <i class="fa-solid fa-trash"></i> <span>Apagar</span>
+                </button>
+                <button onclick="clearSelection()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-400 rounded-md">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </main>
+
+        <!-- RIGHT PANEL: COLOR PALETTES -->
+        <aside class="w-64 bg-slate-900 border-l border-slate-800 p-4 flex flex-col space-y-5 shrink-0 z-10 overflow-y-auto">
+            <!-- Active Color Section -->
+            <div class="space-y-2">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Cor Ativa</h2>
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center space-x-3">
+                    <div class="relative group cursor-pointer">
+                        <div id="color-preview" class="w-12 h-12 rounded-lg border-2 border-white/20 shadow-inner" style="background-color: #38b2f6;"></div>
+                        <input type="color" id="custom-color-picker" value="#38b2f6" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                    </div>
+                    <div class="flex-1">
+                        <div id="hex-color-text" class="text-sm font-mono font-bold text-slate-200">#38B2F6</div>
+                        <p class="text-[10px] text-slate-500">Clique no quadrado para personalizar</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Palettes Section -->
+            <div class="space-y-3 flex-1 flex flex-col">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Paleta</h2>
+                    <select id="palette-selector" onchange="changePalettePreset(this.value)" class="bg-slate-950 text-slate-300 border border-slate-800 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500">
+                        <option value="pico8">PICO-8 (16)</option>
+                        <option value="gameboy">GameBoy (4)</option>
+                        <option value="nes">NES Retro (16)</option>
+                        <option value="cyberpunk">Cyberpunk (12)</option>
+                    </select>
+                </div>
+
+                <!-- Color Swatches Grid -->
+                <div id="palette-grid" class="grid grid-cols-4 gap-2 bg-slate-950 border border-slate-800 p-3 rounded-xl overflow-y-auto max-h-56">
+                    <!-- Dynamic Swatches Generated via JS -->
+                </div>
+            </div>
+
+            <!-- Info Box -->
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 text-[11px] text-slate-400 space-y-1">
+                <p class="font-semibold text-slate-300"><i class="fa-solid fa-circle-info text-indigo-400 mr-1"></i> Linhas Suaves</p>
+                <p>O algoritmo de Bresenham interpola os pontos ao desenhar rapidamente para evitar linhas pontilhadas!</p>
+            </div>
+        </aside>
+    </div>
+
+    <!-- BOTTOM TIMELINE BAR -->
+    <footer class="h-28 bg-slate-900 border-t border-slate-800 p-3 flex flex-col space-y-2 shrink-0 z-20">
+        <div class="flex items-center justify-between">
+            <!-- Play / Pause & Frame Rate Controls -->
+            <div class="flex items-center space-x-4">
+                <button id="play-btn" onclick="togglePlayAnimation()" class="flex items-center space-x-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-sm shadow-emerald-600/30 transition">
+                    <i id="play-icon" class="fa-solid fa-play"></i>
+                    <span id="play-text">Reproduzir</span>
+                </button>
+
+                <!-- FPS Slider -->
+                <div class="flex items-center space-x-2 bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg">
+                    <span class="text-xs text-slate-400 font-medium">FPS:</span>
+                    <input type="range" id="fps-slider" min="1" max="24" value="8" oninput="updateFPS(this.value)" class="w-20 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                    <span id="fps-value" class="text-xs font-mono font-bold text-indigo-400 w-4">8</span>
+                </div>
+
+                <!-- Onion Skinning Toggle -->
+                <button id="onion-skin-btn" onclick="toggleOnionSkin()" class="flex items-center space-x-1.5 px-3 py-1 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-400 text-xs rounded-lg transition">
+                    <i class="fa-solid fa-layer-group text-slate-400"></i>
+                    <span>Onion Skin: <strong id="onion-status" class="text-rose-400">Off</strong></span>
+                </button>
+            </div>
+
+            <!-- Frame Actions -->
+            <div class="flex items-center space-x-2">
+                <button onclick="addNewFrame()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition">
+                    <i class="fa-solid fa-plus text-indigo-400"></i>
+                    <span>+ Novo Quadro</span>
+                </button>
+                <button onclick="duplicateFrame()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition">
+                    <i class="fa-solid fa-clone text-amber-400"></i>
+                    <span>Duplicar</span>
+                </button>
+                <button onclick="deleteFrame()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-rose-900/40 text-rose-300 text-xs font-medium rounded-lg border border-slate-700 transition">
+                    <i class="fa-solid fa-trash-can text-rose-400"></i>
+                    <span>Excluir Quadro</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Frame Thumbnails Track -->
+        <div id="frames-track" class="flex-1 flex items-center space-x-2 overflow-x-auto py-1">
+            <!-- Dynamic frame thumbs rendered via JS -->
+        </div>
+    </footer>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast" class="fixed bottom-32 right-6 bg-slate-800 border border-slate-700 text-slate-100 text-xs font-medium px-4 py-2.5 rounded-xl shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-50 flex items-center space-x-2">
+        <i id="toast-icon" class="fa-solid fa-check-circle text-emerald-400"></i>
+        <span id="toast-msg">Mensagem</span>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // Canvas Grid Dimensions
+        let gridWidth = 32;
+        let gridHeight = 32;
+        const CANVAS_SIZE_PX = 512; // Display size in screen pixels
+
+        // State Storage
+        let frames = []; // Array of 2D pixel color arrays [frameIndex][y * width + x]
+        let currentFrameIndex = 0;
+        let history = []; // Stack for undo/redo
+        let historyStep = -1;
+        const MAX_HISTORY = 30;
+
+        // Tool & Palette Settings
+        let currentTool = 'pencil'; // pencil, eraser, bucket, eyedropper, select
+        let currentColor = '#38B2F6';
+        let showGrid = true;
+        let isDrawing = false;
+        let lastPos = null; // {x, y} for Bresenham interpolation
+
+        // Selection Tool State
+        let selection = null; // {startX, startY, endX, endY, copiedData: []}
+        let isSelecting = false;
+
+        // Animation Settings
+        let isPlaying = false;
+        let fps = 8;
+        let playInterval = null;
+        let onionSkin = false;
+
+        // Color Palettes Presets
+        const PALETTES = {
+            pico8: ['#000000', '#1D2B53', '#7E2553', '#008751', '#AB5236', '#5F574F', '#C2C3C7', '#FFF1E8', '#FF004D', '#FFA300', '#FFEC27', '#00E436', '#29ADFF', '#83769C', '#FF77A8', '#FFCCAA'],
+            gameboy: ['#0f380f', '#306230', '#8bac0f', '#9bbc0f'],
+            nes: ['#000000', '#24188c', '#0000a8', '#440096', '#a80020', '#a81000', '#881400', '#503000', '#007800', '#006800', '#005800', '#004058', '#f8f8f8', '#3cbdc6', '#f878f8', '#f8a4c0'],
+            cyberpunk: ['#050505', '#2b0938', '#5c1349', '#8f1e56', '#cb2f5c', '#ff416c', '#ff8000', '#ffcc00', '#00ffcc', '#00bfff', '#3366ff', '#ffffff']
+        };
+
+        // DOM Element References
+        const canvas = document.getElementById('pixelCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvas-container');
+
+        /**
+         * Bresenham's Line Algorithm
+         * Generates all grid points on a straight line between (x0, y0) and (x1, y1).
+         * This prevents dotted/broken lines when moving mouse fast across canvas!
+         */
+        function getBresenhamLine(x0, y0, x1, y1) {
+            const points = [];
+            const dx = Math.abs(x1 - x0);
+            const dy = Math.abs(y1 - y0);
+            const sx = x0 < x1 ? 1 : -1;
+            const sy = y0 < y1 ? 1 : -1;
+            let err = dx - dy;
+
+            let currX = x0;
+            let currY = y0;
+
+            while (true) {
+                points.push({ x: currX, y: currY });
+
+                if (currX === x1 && currY === y1) break;
+
+                const e2 = 2 * err;
+                if (e2 > -dy) {
+                    err -= dy;
+                    currX += sx;
+                }
+                if (e2 < dx) {
+                    err += dx;
+                    currY += sy;
+                }
+            }
+            return points;
+        }
+
+        /**
+         * Flood Fill (Bucket Tool) Algorithm
+         */
+        function floodFill(startX, startY, targetColor, replacementColor) {
+            if (targetColor === replacementColor) return;
+            if (startX < 0 || startX >= gridWidth || startY < 0 || startY >= gridHeight) return;
+
+            const currentFrame = frames[currentFrameIndex];
+            const queue = [{ x: startX, y: startY }];
+
+            while (queue.length > 0) {
+                const { x, y } = queue.pop();
+                const idx = y * gridWidth + x;
+
+                if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) continue;
+
+                if (currentFrame[idx] === targetColor) {
+                    currentFrame[idx] = replacementColor;
+
+                    queue.push({ x: x + 1, y: y });
+                    queue.push({ x: x - 1, y: y });
+                    queue.push({ x: x, y: y + 1 });
+                    queue.push({ x: x, y: y - 1 });
+                }
+            }
+        }
+
+        /**
+         * Initialize or Reset Canvas Grid Size
+         */
+        function initCanvas() {
+            canvas.width = gridWidth;
+            canvas.height = gridHeight;
+
+            // Set display dimensions
+            canvasContainer.style.width = `${CANVAS_SIZE_PX}px`;
+            canvasContainer.style.height = `${CANVAS_SIZE_PX}px`;
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+
+            // Ensure frames buffer is properly initialized with a default frame
+            if (!frames || frames.length === 0) {
+                frames = [createEmptyFrame()];
+                currentFrameIndex = 0;
+            } else if (currentFrameIndex >= frames.length) {
+                currentFrameIndex = frames.length - 1;
+            }
+
+            saveState();
+            renderCanvas();
+            renderTimeline();
+            updateGridSizeButtons();
+        }
+
+        function createEmptyFrame() {
+            return new Array(gridWidth * gridHeight).fill('');
+        }
+
+        /**
+         * Main Render Function: Draws current pixel frame, onion skin, grid lines, selection
+         */
+        function renderCanvas() {
+            ctx.clearRect(0, 0, gridWidth, gridHeight);
+
+            // Safety check: verify frame exists before attempting to read pixel indices
+            if (!frames || frames.length === 0 || !frames[currentFrameIndex]) return;
+
+            // 1. Draw Onion Skinning (Previous frame semi-transparent)
+            if (onionSkin && currentFrameIndex > 0 && !isPlaying) {
+                const prevFrame = frames[currentFrameIndex - 1];
+                if (prevFrame) {
+                    for (let y = 0; y < gridHeight; y++) {
+                        for (let x = 0; x < gridWidth; x++) {
+                            const color = prevFrame[y * gridWidth + x];
+                            if (color) {
+                                ctx.fillStyle = hexToRgba(color, 0.35);
+                                ctx.fillRect(x, y, 1, 1);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Draw Current Frame Pixels
+            const frame = frames[currentFrameIndex];
+            if (frame) {
+                for (let y = 0; y < gridHeight; y++) {
+                    for (let x = 0; x < gridWidth; x++) {
+                        const color = frame[y * gridWidth + x];
+                        if (color) {
+                            ctx.fillStyle = color;
+                            ctx.fillRect(x, y, 1, 1);
+                        }
+                    }
+                }
+            }
+
+            // 3. Draw Grid Lines if enabled
+            if (showGrid && !isPlaying) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+                ctx.lineWidth = 0.05;
+
+                for (let x = 0; x <= gridWidth; x++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, gridHeight);
+                    ctx.stroke();
+                }
+                for (let y = 0; y <= gridHeight; y++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(gridWidth, y);
+                    ctx.stroke();
+                }
+            }
+
+            // 4. Draw Selection Overlay
+            if (selection && selection.startX !== null) {
+                const x1 = Math.min(selection.startX, selection.endX);
+                const y1 = Math.min(selection.startY, selection.endY);
+                const w = Math.abs(selection.endX - selection.startX) + 1;
+                const h = Math.abs(selection.endY - selection.startY) + 1;
+
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 0.1;
+                ctx.setLineDash([0.3, 0.3]);
+                ctx.strokeRect(x1 + 0.05, y1 + 0.05, w - 0.1, h - 0.1);
+                ctx.setLineDash([]);
+            }
+        }
+
+        /**
+         * Get pixel grid coordinate from pointer event
+         */
+        function getGridCoordinates(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+            const scaleX = gridWidth / rect.width;
+            const scaleY = gridHeight / rect.height;
+
+            const x = Math.floor((clientX - rect.left) * scaleX);
+            const y = Math.floor((clientY - rect.top) * scaleY);
+
+            return {
+                x: Math.max(0, Math.min(gridWidth - 1, x)),
+                y: Math.max(0, Math.min(gridHeight - 1, y))
+            };
+        }
+
+        function handlePointerDown(e) {
+            if (isPlaying) return;
+            const pos = getGridCoordinates(e);
+            isDrawing = true;
+
+            if (currentTool === 'pencil' || currentTool === 'eraser') {
+                saveState(); // Record state before stroke starts
+                applyTool(pos.x, pos.y);
+                lastPos = pos;
+            } else if (currentTool === 'bucket') {
+                saveState();
+                const targetColor = frames[currentFrameIndex][pos.y * gridWidth + pos.x];
+                const replacementColor = currentColor;
+                floodFill(pos.x, pos.y, targetColor, replacementColor);
+                renderCanvas();
+                updateFrameThumbnail(currentFrameIndex);
+            } else if (currentTool === 'eyedropper') {
+                const pickedColor = frames[currentFrameIndex][pos.y * gridWidth + pos.x];
+                if (pickedColor) {
+                    setColor(pickedColor);
+                    showToast(`Cor selecionada: ${pickedColor}`, 'fa-eye-dropper');
+                }
+            } else if (currentTool === 'select') {
+                isSelecting = true;
+                selection = { startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y, copiedData: null };
+                renderCanvas();
+                updateSelectionToolbar();
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (!isDrawing && !isSelecting) return;
+            const pos = getGridCoordinates(e);
+
+            if (isDrawing && (currentTool === 'pencil' || currentTool === 'eraser')) {
+                if (lastPos) {
+                    // CRITICAL FIX: Interpolate line with Bresenham's algorithm!
+                    // Traces every pixel between fast mouse move frames to prevent gaps/dots.
+                    const points = getBresenhamLine(lastPos.x, lastPos.y, pos.x, pos.y);
+                    points.forEach(p => applyTool(p.x, p.y));
+                } else {
+                    applyTool(pos.x, pos.y);
+                }
+                lastPos = pos;
+                renderCanvas();
+            } else if (isSelecting) {
+                selection.endX = pos.x;
+                selection.endY = pos.y;
+                renderCanvas();
+                updateSelectionToolbar();
+            }
+        }
+
+        function handlePointerUp() {
+            if (isDrawing) {
+                isDrawing = false;
+                lastPos = null;
+                updateFrameThumbnail(currentFrameIndex);
+            }
+            if (isSelecting) {
+                isSelecting = false;
+            }
+        }
+
+        function applyTool(x, y) {
+            const idx = y * gridWidth + x;
+            if (currentTool === 'pencil') {
+                frames[currentFrameIndex][idx] = currentColor;
+            } else if (currentTool === 'eraser') {
+                frames[currentFrameIndex][idx] = '';
+            }
+        }
+
+        function updateSelectionToolbar() {
+            const toolbar = document.getElementById('selection-toolbar');
+            if (selection && selection.startX !== null && currentTool === 'select') {
+                toolbar.classList.remove('hidden');
+            } else {
+                toolbar.classList.add('hidden');
+            }
+        }
+
+        function clearSelection() {
+            selection = null;
+            renderCanvas();
+            updateSelectionToolbar();
+        }
+
+        function copySelection() {
+            if (!selection) return;
+            const x1 = Math.min(selection.startX, selection.endX);
+            const y1 = Math.min(selection.startY, selection.endY);
+            const w = Math.abs(selection.endX - selection.startX) + 1;
+            const h = Math.abs(selection.endY - selection.startY) + 1;
+
+            const copied = [];
+            const frame = frames[currentFrameIndex];
+
+            for (let y = y1; y < y1 + h; y++) {
+                for (let x = x1; x < x1 + w; x++) {
+                    copied.push(frame[y * gridWidth + x]);
+                }
+            }
+
+            selection.copiedData = { width: w, height: h, pixels: copied };
+            showToast('Seleção copiada!', 'fa-copy');
+        }
+
+        function cutSelection() {
+            copySelection();
+            deleteSelection();
+        }
+
+        function deleteSelection() {
+            if (!selection) return;
+            saveState();
+            const x1 = Math.min(selection.startX, selection.endX);
+            const y1 = Math.min(selection.startY, selection.endY);
+            const w = Math.abs(selection.endX - selection.startX) + 1;
+            const h = Math.abs(selection.endY - selection.startY) + 1;
+
+            const frame = frames[currentFrameIndex];
+            for (let y = y1; y < y1 + h; y++) {
+                for (let x = x1; x < x1 + w; x++) {
+                    frame[y * gridWidth + x] = '';
+                }
+            }
+
+            renderCanvas();
+            updateFrameThumbnail(currentFrameIndex);
+            showToast('Área apagada', 'fa-trash');
+        }
+
+        function saveState() {
+            // Truncate redo history if new action taken
+            if (historyStep < history.length - 1) {
+                history = history.slice(0, historyStep + 1);
+            }
+
+            // Clone frames deep copy
+            const snapshot = frames.map(f => [...f]);
+            history.push({
+                frames: snapshot,
+                currentFrameIndex: currentFrameIndex
+            });
+
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            } else {
+                historyStep++;
+            }
+        }
+
+        function undo() {
+            if (historyStep > 0) {
+                historyStep--;
+                const state = history[historyStep];
+                frames = state.frames.map(f => [...f]);
+                currentFrameIndex = Math.min(state.currentFrameIndex, frames.length - 1);
+                renderCanvas();
+                renderTimeline();
+                showToast('Desfeito', 'fa-rotate-left');
+            }
+        }
+
+        function redo() {
+            if (historyStep < history.length - 1) {
+                historyStep++;
+                const state = history[historyStep];
+                frames = state.frames.map(f => [...f]);
+                currentFrameIndex = Math.min(state.currentFrameIndex, frames.length - 1);
+                renderCanvas();
+                renderTimeline();
+                showToast('Reffeito', 'fa-rotate-right');
+            }
+        }
+
+        function addNewFrame() {
+            saveState();
+            frames.push(createEmptyFrame());
+            currentFrameIndex = frames.length - 1;
+            renderCanvas();
+            renderTimeline();
+            showToast('Novo quadro criado', 'fa-plus');
+        }
+
+        function duplicateFrame() {
+            saveState();
+            const currentData = [...frames[currentFrameIndex]];
+            frames.splice(currentFrameIndex + 1, 0, currentData);
+            currentFrameIndex++;
+            renderCanvas();
+            renderTimeline();
+            showToast('Quadro duplicado', 'fa-clone');
+        }
+
+        function deleteFrame() {
+            if (frames.length <= 1) {
+                showToast('Mínimo de 1 quadro necessário!', 'fa-exclamation-triangle');
+                return;
+            }
+            saveState();
+            frames.splice(currentFrameIndex, 1);
+            if (currentFrameIndex >= frames.length) {
+                currentFrameIndex = frames.length - 1;
+            }
+            renderCanvas();
+            renderTimeline();
+            showToast('Quadro removido', 'fa-trash');
+        }
+
+        function selectFrame(index) {
+            currentFrameIndex = index;
+            renderCanvas();
+            renderTimeline();
+        }
+
+        function renderTimeline() {
+            const track = document.getElementById('frames-track');
+            track.innerHTML = '';
+
+            frames.forEach((frame, idx) => {
+                const card = document.createElement('div');
+                card.className = `relative flex-shrink-0 w-16 h-16 rounded-lg border-2 cursor-pointer transition flex items-center justify-center checkerboard ${
+                    idx === currentFrameIndex ? 'border-indigo-500 ring-2 ring-indigo-500/50 scale-105 z-10' : 'border-slate-800 hover:border-slate-600'
+                }`;
+                card.onclick = () => selectFrame(idx);
+
+                // Frame Canvas Thumbnail
+                const thumbCanvas = document.createElement('canvas');
+                thumbCanvas.width = gridWidth;
+                thumbCanvas.height = gridHeight;
+                thumbCanvas.className = 'w-full h-full rounded-md image-pixelated';
+
+                const tCtx = thumbCanvas.getContext('2d');
+                for (let y = 0; y < gridHeight; y++) {
+                    for (let x = 0; x < gridWidth; x++) {
+                        const color = frame[y * gridWidth + x];
+                        if (color) {
+                            tCtx.fillStyle = color;
+                            tCtx.fillRect(x, y, 1, 1);
+                        }
+                    }
+                }
+
+                // Badge Number
+                const numBadge = document.createElement('span');
+                numBadge.className = 'absolute bottom-1 left-1 bg-slate-900/80 text-[10px] font-mono px-1 rounded text-slate-300';
+                numBadge.innerText = `#${idx + 1}`;
+
+                card.appendChild(thumbCanvas);
+                card.appendChild(numBadge);
+                track.appendChild(card);
+            });
+        }
+
+        function updateFrameThumbnail(idx) {
+            renderTimeline();
+        }
+
+        function togglePlayAnimation() {
+            isPlaying = !isPlaying;
+            const playBtnText = document.getElementById('play-text');
+            const playIcon = document.getElementById('play-icon');
+            const playBtn = document.getElementById('play-btn');
+
+            if (isPlaying) {
+                playBtnText.innerText = 'Pausar';
+                playIcon.className = 'fa-solid fa-pause';
+                playBtn.classList.replace('bg-emerald-600', 'bg-amber-600');
+                playBtn.classList.replace('hover:bg-emerald-500', 'hover:bg-amber-500');
+
+                playInterval = setInterval(() => {
+                    currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+                    renderCanvas();
+                    renderTimeline();
+                }, 1000 / fps);
+            } else {
+                clearInterval(playInterval);
+                playBtnText.innerText = 'Reproduzir';
+                playIcon.className = 'fa-solid fa-play';
+                playBtn.classList.replace('bg-amber-600', 'bg-emerald-600');
+                playBtn.classList.replace('hover:bg-amber-500', 'hover:bg-emerald-500');
+                renderCanvas();
+            }
+        }
+
+        function updateFPS(val) {
+            fps = parseInt(val);
+            document.getElementById('fps-value').innerText = fps;
+            if (isPlaying) {
+                clearInterval(playInterval);
+                playInterval = setInterval(() => {
+                    currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+                    renderCanvas();
+                    renderTimeline();
+                }, 1000 / fps);
+            }
+        }
+
+        function toggleOnionSkin() {
+            onionSkin = !onionSkin;
+            const statusEl = document.getElementById('onion-status');
+            if (onionSkin) {
+                statusEl.innerText = 'On';
+                statusEl.className = 'text-emerald-400';
+            } else {
+                statusEl.innerText = 'Off';
+                statusEl.className = 'text-rose-400';
+            }
+            renderCanvas();
+        }
+
+        function toggleGrid() {
+            showGrid = !showGrid;
+            document.getElementById('grid-status-text').innerText = `Grade: ${showGrid ? 'ON' : 'OFF'}`;
+            renderCanvas();
+        }
+
+        function exportPNG() {
+            const tempCanvas = document.createElement('canvas');
+            const exportScale = 16; // Export pixel upscale multiplier
+            tempCanvas.width = gridWidth * exportScale;
+            tempCanvas.height = gridHeight * exportScale;
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.imageSmoothingEnabled = false;
+
+            const frame = frames[currentFrameIndex];
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
+                    const color = frame[y * gridWidth + x];
+                    if (color) {
+                        tCtx.fillStyle = color;
+                        tCtx.fillRect(x * exportScale, y * exportScale, exportScale, exportScale);
+                    }
+                }
+            }
+
+            const link = document.createElement('a');
+            link.download = `pixel-art-quadro-${currentFrameIndex + 1}.png`;
+            link.href = tempCanvas.toDataURL('image/png');
+            link.click();
+            showToast('Download PNG concluído!', 'fa-download');
+        }
+
+        function exportSpriteSheet() {
+            const tempCanvas = document.createElement('canvas');
+            const exportScale = 8;
+            tempCanvas.width = gridWidth * exportScale * frames.length;
+            tempCanvas.height = gridHeight * exportScale;
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.imageSmoothingEnabled = false;
+
+            frames.forEach((frame, fIdx) => {
+                const offsetX = fIdx * gridWidth * exportScale;
+                for (let y = 0; y < gridHeight; y++) {
+                    for (let x = 0; x < gridWidth; x++) {
+                        const color = frame[y * gridWidth + x];
+                        if (color) {
+                            tCtx.fillStyle = color;
+                            tCtx.fillRect(offsetX + (x * exportScale), y * exportScale, exportScale, exportScale);
+                        }
+                    }
+                }
+            });
+
+            const link = document.createElement('a');
+            link.download = `sprite-sheet-${frames.length}-quadros.png`;
+            link.href = tempCanvas.toDataURL('image/png');
+            link.click();
+            showToast('Sprite Sheet exportada!', 'fa-table-cells');
+        }
+
+        function setGridSize(size) {
+            if (size === gridWidth) return;
+            
+            gridWidth = size;
+            gridHeight = size;
+            
+            // Re-initialize frames array to match new dimension
+            frames = [createEmptyFrame()];
+            currentFrameIndex = 0;
+            history = [];
+            historyStep = -1;
+
+            initCanvas();
+            showToast(`Grade alterada para ${size}x${size}`, 'fa-border-all');
+        }
+
+        function updateGridSizeButtons() {
+            [16, 32, 64].forEach(s => {
+                const btn = document.getElementById(`size-${s}`);
+                if (s === gridWidth) {
+                    btn.className = 'px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-600 text-white shadow-sm';
+                } else {
+                    btn.className = 'px-2.5 py-1 text-xs font-semibold rounded-md transition-colors hover:bg-slate-800 text-slate-300';
+                }
+            });
+        }
+
+        function setTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`tool-${tool}`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            if (tool !== 'select') {
+                clearSelection();
+            }
+        }
+
+        function setColor(hex) {
+            currentColor = hex;
+            document.getElementById('color-preview').style.backgroundColor = hex;
+            document.getElementById('hex-color-text').innerText = hex.toUpperCase();
+            document.getElementById('custom-color-picker').value = hex;
+
+            // Highlight selected swatch if matched
+            document.querySelectorAll('.palette-swatch').forEach(sw => {
+                if (sw.getAttribute('data-color').toLowerCase() === hex.toLowerCase()) {
+                    sw.classList.add('selected');
+                } else {
+                    sw.classList.remove('selected');
+                }
+            });
+        }
+
+        function changePalettePreset(presetKey) {
+            const colors = PALETTES[presetKey] || PALETTES.pico8;
+            const grid = document.getElementById('palette-grid');
+            grid.innerHTML = '';
+
+            colors.forEach(hex => {
+                const swatch = document.createElement('button');
+                swatch.className = 'palette-swatch w-full h-8 rounded-lg shadow-md border border-white/10 relative';
+                swatch.style.backgroundColor = hex;
+                swatch.setAttribute('data-color', hex);
+                swatch.onclick = () => setColor(hex);
+                grid.appendChild(swatch);
+            });
+
+            setColor(colors[0]);
+        }
+
+        function clearCanvasPrompt() {
+            saveState();
+            frames[currentFrameIndex] = createEmptyFrame();
+            renderCanvas();
+            renderTimeline();
+            showToast('Quadro limpo', 'fa-eraser');
+        }
+
+        function showToast(msg, icon = 'fa-check-circle') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.innerText = msg;
+            toastIcon.className = `fa-solid ${icon} text-indigo-400`;
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2000);
+        }
+
+        function hexToRgba(hex, alpha = 1) {
+            let c = hex.replace('#', '');
+            if (c.length === 3) c = c.split('').map(x => x + x).join('');
+            const num = parseInt(c, 16);
+            return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+        }
+
+        // Attach Mouse & Touch Event Listeners
+        canvas.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handlePointerDown(e);
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if (isDrawing || isSelecting) {
+                e.preventDefault();
+                handlePointerMove(e);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', handlePointerUp);
+
+        // Custom Color Input Listener
+        document.getElementById('custom-color-picker').addEventListener('input', (e) => {
+            setColor(e.target.value);
+        });
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') {
+                    e.preventDefault();
+                    undo();
+                } else if (e.key === 'y') {
+                    e.preventDefault();
+                    redo();
+                } else if (e.key === 'c') {
+                    e.preventDefault();
+                    copySelection();
+                } else if (e.key === 'x') {
+                    e.preventDefault();
+                    cutSelection();
+                }
+            } else {
+                if (e.key === 'p' || e.key === 'P') setTool('pencil');
+                if (e.key === 'e' || e.key === 'E') setTool('eraser');
+                if (e.key === 'b' || e.key === 'B') setTool('bucket');
+                if (e.key === 'i' || e.key === 'I') setTool('eyedropper');
+                if (e.key === 's' || e.key === 'S') setTool('select');
+                if (e.key === 'Delete' || e.key === 'Backspace') deleteSelection();
+            }
+        });
+
+        // Initialize App on Window Load
+        window.onload = function() {
+            initCanvas();
+            changePalettePreset('pico8');
+            setTool('pencil');
+        };
+    </script>
+</body>
+</html>
