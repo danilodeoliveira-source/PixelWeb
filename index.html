@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Studio Web</title>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-card: #334155;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+      --border: #475569;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Top Bar */
+    header {
+      background-color: var(--bg-panel);
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { font-weight: bold; font-size: 1.2rem; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    .top-controls { display: flex; gap: 12px; align-items: center; }
+
+    /* Main Workspace */
+    .workspace { display: flex; flex: 1; overflow: hidden; }
+
+    /* Sidebar / Toolbar */
+    .toolbar {
+      width: 60px;
+      background-color: var(--bg-panel);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 15px 0;
+      gap: 10px;
+      border-right: 1px solid var(--border);
+    }
+    .tool-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background-color: var(--bg-card);
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.2s;
+    }
+    .tool-btn:hover { background-color: var(--border); }
+    .tool-btn.active { background-color: var(--accent); border-color: #fff; }
+    .tool-btn.danger:hover { background-color: var(--danger); }
+
+    /* Canvas Area */
+    .canvas-container {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #090d16;
+      position: relative;
+      overflow: auto;
+    }
+    #pixelCanvas {
+      background-color: #ffffff;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      image-rendering: pixelated;
+      cursor: crosshair;
+    }
+
+    /* Right Panel (Colors & Selection Options) */
+    .right-panel {
+      width: 240px;
+      background-color: var(--bg-panel);
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      border-left: 1px solid var(--border);
+    }
+    .panel-section { display: flex; flex-direction: column; gap: 8px; }
+    .panel-section h3 { font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+
+    .color-picker-wrapper { display: flex; align-items: center; gap: 10px; }
+    #colorPicker { width: 45px; height: 45px; border: none; border-radius: 6px; cursor: pointer; background: none; }
+
+    .palette-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .swatch {
+      aspect-ratio: 1;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.1s;
+    }
+    .swatch:hover { transform: scale(1.1); }
+    .swatch.selected { border-color: #fff; }
+
+    /* Selection Action Box */
+    .selection-actions {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--bg-card);
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .selection-actions.active { display: flex; }
+
+    /* Timeline / Bottom Bar */
+    .timeline {
+      height: 110px;
+      background-color: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 8px 15px;
+      gap: 8px;
+    }
+    .timeline-controls { display: flex; align-items: center; gap: 15px; }
+    .frames-list {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 5px;
+      align-items: center;
+    }
+    .frame-thumb {
+      width: 60px;
+      height: 60px;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      background-color: #fff;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+      image-rendering: pixelated;
+    }
+    .frame-thumb.active { border-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .frame-thumb canvas { width: 100%; height: 100%; }
+    .frame-number {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.65rem;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* General UI Components */
+    .btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: none;
+      background-color: var(--bg-card);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { background-color: var(--border); }
+    .btn-primary { background-color: var(--accent); }
+    .btn-primary:hover { background-color: var(--accent-hover); }
+    .btn-danger { background-color: var(--danger); }
+
+    select, input[type="number"] {
+      background-color: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 5px 8px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header>
+    <div class="logo">🎨 Pixel Studio Web</div>
+    <div class="top-controls">
+      <label>Tamanho: </label>
+      <select id="gridSize">
+        <option value="16">16 × 16</option>
+        <option value="32">32 × 32</option>
+        <option value="64" selected>64 × 64</option>
+      </select>
+      <button class="btn" id="toggleGrid">🌐 Grade: ON</button>
+      <button class="btn btn-primary" id="exportPNG">📥 Baixar PNG</button>
+      <button class="btn btn-primary" id="exportSpritesheet">🖼️ Sprite Sheet</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <button class="tool-btn active" id="toolPencil" title="Lápis">✏️</button>
+      <button class="tool-btn" id="toolSelect" title="Seleção (Recortar/Mover/Copiar)">🔲</button>
+      <button class="tool-btn" id="toolEraser" title="Borracha">🧹</button>
+      <button class="tool-btn" id="toolFill" title="Balde de Tinta">🪣</button>
+      <button class="tool-btn" id="toolEyedropper" title="Conta-gotas">🧪</button>
+      <div style="height: 10px;"></div>
+      <button class="tool-btn" id="btnUndo" title="Desfazer (Ctrl+Z)">↩️</button>
+      <button class="tool-btn" id="btnRedo" title="Refazer (Ctrl+Y)">↪️</button>
+      <button class="tool-btn danger" id="btnClear" title="Limpar Quadro">🗑️</button>
+    </div>
+
+    <!-- Canvas Central -->
+    <div class="canvas-container">
+      <canvas id="pixelCanvas"></canvas>
+    </div>
+
+    <!-- Painel Direito -->
+    <div class="right-panel">
+      <div class="panel-section">
+        <h3>Cor Ativa</h3>
+        <div class="color-picker-wrapper">
+          <input type="color" id="colorPicker" value="#000000">
+          <span id="colorHex">#000000</span>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Paleta Retro</h3>
+        <div class="palette-grid" id="paletteGrid"></div>
+      </div>
+
+      <!-- Painel de Ações de Seleção -->
+      <div class="panel-section">
+        <h3>Ações de Seleção</h3>
+        <div class="selection-actions" id="selectionActions">
+          <button class="btn" id="btnCutSel">✂️ Recortar</button>
+
+          <button class="btn" id="btnCopySel">📋 Copiar</button>
+          <button class="btn" id="btnDeleteSel">❌ Excluir Área</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline da Animação -->
+  <div class="timeline">
+    <div class="timeline-controls">
+      <button class="btn btn-primary" id="btnPlay">▶️ Reproduzir</button>
+      <label>FPS: <input type="number" id="fpsInput" value="8" min="1" max="30" style="width: 50px;"></label>
+      <button class="btn" id="btnOnion">🧅 Onion Skin: OFF</button>
+      <div style="flex:1;"></div>
+      <button class="btn" id="btnAddFrame">➕ Novo Frame</button>
+      <button class="btn" id="btnDuplicateFrame">📄 Duplicar</button>
+      <button class="btn btn-danger" id="btnDeleteFrame">🗑️ Excluir Frame</button>
+    </div>
+
+    <div class="frames-list" id="framesList"></div>
+  </div>
+
+  <script>
+    // Configurações do Editor
+    let gridSize = 64;
+    let canvasSize = 512; 
+    let pixelSize = canvasSize / gridSize;
+
+    let activeTool = 'pencil'; // pencil, select, eraser, fill, eyedropper
+    let currentColor = '#000000';
+    let showGrid = true;
+    let onionSkin = false;
+
+    // Estado de Animação
+    let frames = [];
+    let currentFrameIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+    let fps = 8;
+
+    // Histórico de Undo/Redo por Frame
+    let history = [];
+    let historyStep = -1;
+
+    // Estado da Ferramenta de Seleção
+    let isSelecting = false;
+    let selectionStart = null;
+    let selectionEnd = null;
+    let clipboardData = null;
+
+    // Elementos DOM
+    const canvas = document.getElementById('pixelCanvas');
+    const ctx = canvas.getContext('2d');
+    const colorPicker = document.getElementById('colorPicker');
+    const colorHex = document.getElementById('colorHex');
+    const selectionActions = document.getElementById('selectionActions');
+
+    // Paleta PICO-8
+    const palette = [
+      '#000000', '#1D2B53', '#7E2553', '#008751',
+      '#AB5236', '#5F574F', '#C2C3C7', '#FFF1E8',
+      '#FF004D', '#FFA300', '#FFEC27', '#00E436',
+      '#29ADFF', '#83769C', '#FF77A8', '#FFCCAA'
+    ];
+
+    // Inicialização
+    function init() {
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+
+      // Criar Primeiro Frame
+      frames.push(createEmptyFrame());
+      saveHistory();
+
+      buildPalette();
+      setupEventListeners();
+      render();
+      updateFramesTimeline();
+    }
+
+    function createEmptyFrame() {
+      let frame = [];
+      for(let y=0; y<gridSize; y++) {
+        let row = [];
+        for(let x=0; x<gridSize; x++) {
+          row.push(null);
+        }
+        frame.push(row);
+      }
+      return frame;
+    }
+
+    function buildPalette() {
+      const grid = document.getElementById('paletteGrid');
+      grid.innerHTML = '';
+      palette.forEach(color => {
+        const swatch = document.createElement('div');
+        swatch.className = 'swatch';
+        swatch.style.backgroundColor = color;
+        swatch.onclick = () => {
+          currentColor = color;
+          colorPicker.value = color;
+          colorHex.innerText = color.toUpperCase();
+        };
+        grid.appendChild(swatch);
+      });
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Renderizar Onion Skin (Frame Anterior)
+      if (onionSkin && currentFrameIndex > 0 && !isPlaying) {
+        let prevFrame = frames[currentFrameIndex - 1];
+        ctx.globalAlpha = 0.3;
+        drawFrameData(prevFrame);
+        ctx.globalAlpha = 1.0;
+      }
+
+      // Renderizar Frame Atual
+      drawFrameData(frames[currentFrameIndex]);
+
+      // Desenhar Seleção se ativa
+      if (selectionStart && selectionEnd) {
+        drawSelectionBox();
+      }
+
+      // Desenhar Grade
+      if (showGrid) {
+        drawGridLines();
+      }
+    }
+
+    function drawFrameData(frameData) {
+      for(let y=0; y<gridSize; y++) {
+        for(let x=0; x<gridSize; x++) {
+          if (frameData[y][x]) {
+            ctx.fillStyle = frameData[y][x];
+            ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+          }
+        }
+      }
+    }
+
+    function drawGridLines() {
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.lineWidth = 1;
+      for(let i=0; i<=gridSize; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * pixelSize, 0);
+        ctx.lineTo(i * pixelSize, canvasSize);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, i * pixelSize);
+        ctx.lineTo(canvasSize, i * pixelSize);
+        ctx.stroke();
+      }
+    }
+
+    function drawSelectionBox() {
+      let x1 = Math.min(selectionStart.x, selectionEnd.x);
+      let y1 = Math.min(selectionStart.y, selectionEnd.y);
+      let x2 = Math.max(selectionStart.x, selectionEnd.x);
+      let y2 = Math.max(selectionStart.y, selectionEnd.y);
+
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(x1 * pixelSize, y1 * pixelSize, (x2 - x1 + 1) * pixelSize, (y2 - y1 + 1) * pixelSize);
+      ctx.setLineDash([]);
+    }
+
+    // Interações com o Canvas
+    let isDrawing = false;
+
+    function getGridCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / pixelSize);
+      const y = Math.floor((e.clientY - rect.top) / pixelSize);
+      return { 
+        x: Math.max(0, Math.min(gridSize - 1, x)), 
+        y: Math.max(0, Math.min(gridSize - 1, y)) 
+      };
+    }
+
+    function handlePointerDown(e) {
+      const coords = getGridCoords(e);
+      isDrawing = true;
+
+      if (activeTool === 'pencil') {
+        frames[currentFrameIndex][coords.y][coords.x] = currentColor;
+      } else if (activeTool === 'eraser') {
+        frames[currentFrameIndex][coords.y][coords.x] = null;
+      } else if (activeTool === 'fill') {
+        floodFill(coords.x, coords.y, currentColor);
+        saveHistory();
+      } else if (activeTool === 'eyedropper') {
+        let picked = frames[currentFrameIndex][coords.y][coords.x];
+        if (picked) {
+          currentColor = picked;
+          colorPicker.value = picked;
+          colorHex.innerText = picked.toUpperCase();
+        }
+      } else if (activeTool === 'select') {
+        isSelecting = true;
+        selectionStart = coords;
+        selectionEnd = coords;
+        selectionActions.classList.add('active');
+      }
+
+      render();
+    }
+
+    function handlePointerMove(e) {
+      if (!isDrawing) return;
+      const coords = getGridCoords(e);
+
+      if (activeTool === 'pencil') {
+        frames[currentFrameIndex][coords.y][coords.x] = currentColor;
+      } else if (activeTool === 'eraser') {
+        frames[currentFrameIndex][coords.y][coords.x] = null;
+      } else if (activeTool === 'select' && isSelecting) {
+        selectionEnd = coords;
+      }
+
+      render();
+    }
+
+    function handlePointerUp() {
+      if (isDrawing && (activeTool === 'pencil' || activeTool === 'eraser')) {
+        saveHistory();
+      }
+      isDrawing = false;
+      isSelecting = false;
+      updateFramesTimeline();
+    }
+
+    // Flood Fill Algorithm (Balde de Tinta)
+    function floodFill(startX, startY, targetColor) {
+      const currentFrame = frames[currentFrameIndex];
+      const startColor = currentFrame[startY][startX];
+      if (startColor === targetColor) return;
+
+      const queue = [[startX, startY]];
+      while(queue.length > 0) {
+        const [x, y] = queue.pop();
+        if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) continue;
+        if (currentFrame[y][x] === startColor) {
+          currentFrame[y][x] = targetColor;
+          queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        }
+      }
+    }
+
+    // Ações da Ferramenta de Seleção
+    function getSelectionBounds() {
+      if (!selectionStart || !selectionEnd) return null;
+      return {
+        x1: Math.min(selectionStart.x, selectionEnd.x),
+        y1: Math.min(selectionStart.y, selectionEnd.y),
+        x2: Math.max(selectionStart.x, selectionEnd.x),
+        y2: Math.max(selectionStart.y, selectionEnd.y)
+      };
+    }
+
+    function deleteSelection() {
+      const bounds = getSelectionBounds();
+      if (!bounds) return;
+      let frame = frames[currentFrameIndex];
+      for(let y = bounds.y1; y <= bounds.y2; y++) {
+        for(let x = bounds.x1; x <= bounds.x2; x++) {
+          frame[y][x] = null;
+        }
+      }
+      saveHistory();
+      render();
+      updateFramesTimeline();
+    }
+
+    function copySelection() {
+      const bounds = getSelectionBounds();
+      if (!bounds) return;
+      clipboardData = [];
+      let frame = frames[currentFrameIndex];
+      for(let y = bounds.y1; y <= bounds.y2; y++) {
+        let row = [];
+        for(let x = bounds.x1; x <= bounds.x2; x++) {
+          row.push(frame[y][x]);
+        }
+        clipboardData.push(row);
+      }
+    }
+
+    // Histórico (Undo / Redo)
+    function saveHistory() {
+      history = history.slice(0, historyStep + 1);
+      history.push(JSON.stringify(frames[currentFrameIndex]));
+      historyStep++;
+    }
+
+    function undo() {
+      if (historyStep > 0) {
+        historyStep--;
+        frames[currentFrameIndex] = JSON.parse(history[historyStep]);
+        render();
+        updateFramesTimeline();
+      }
+    }
+
+    function redo() {
+      if (historyStep < history.length - 1) {
+        historyStep++;
+        frames[currentFrameIndex] = JSON.parse(history[historyStep]);
+        render();
+        updateFramesTimeline();
+      }
+    }
+
+    // Gestão da Timeline de Frames
+    function updateFramesTimeline() {
+      const list = document.getElementById('framesList');
+      list.innerHTML = '';
+
+      frames.forEach((frame, idx) => {
+        const thumb = document.createElement('div');
+        thumb.className = `frame-thumb ${idx === currentFrameIndex ? 'active' : ''}`;
+        
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = gridSize;
+        thumbCanvas.height = gridSize;
+        const tCtx = thumbCanvas.getContext('2d');
+
+        for(let y=0; y<gridSize; y++) {
+          for(let x=0; x<gridSize; x++) {
+            if (frame[y][x]) {
+              tCtx.fillStyle = frame[y][x];
+              tCtx.fillRect(x, y, 1, 1);
+            }
+          }
+        }
+
+        const numLabel = document.createElement('div');
+        numLabel.className = 'frame-number';
+        numLabel.innerText = `#${idx + 1}`;
+
+        thumb.appendChild(thumbCanvas);
+        thumb.appendChild(numLabel);
+
+        thumb.onclick = () => {
+          currentFrameIndex = idx;
+          history = [JSON.stringify(frames[currentFrameIndex])];
+          historyStep = 0;
+          render();
+          updateFramesTimeline();
+        };
+
+        list.appendChild(thumb);
+      });
+    }
+
+    // Configuração dos Eventos
+    function setupEventListeners() {
+      canvas.addEventListener('mousedown', handlePointerDown);
+      canvas.addEventListener('mousemove', handlePointerMove);
+      window.addEventListener('mouseup', handlePointerUp);
+
+      // Troca de Ferramentas
+      const tools = {
+        'toolPencil': 'pencil',
+        'toolSelect': 'select',
+        'toolEraser': 'eraser',
+        'toolFill': 'fill',
+        'toolEyedropper': 'eyedropper'
+      };
+
+      Object.keys(tools).forEach(id => {
+        document.getElementById(id).onclick = () => {
+          document.querySelectorAll('.toolbar .tool-btn').forEach(btn => btn.classList.remove('active'));
+          document.getElementById(id).classList.add('active');
+          activeTool = tools[id];
+
+          if (activeTool !== 'select') {
+            selectionStart = null;
+            selectionEnd = null;
+            selectionActions.classList.remove('active');
+            render();
+          }
+        };
+      });
+
+      // Seletor de Cor
+      colorPicker.oninput = (e) => {
+        currentColor = e.target.value;
+        colorHex.innerText = currentColor.toUpperCase();
+      };
+
+      // Tamanho da Grade
+      document.getElementById('gridSize').onchange = (e) => {
+        gridSize = parseInt(e.target.value);
+        pixelSize = canvasSize / gridSize;
+        frames = [createEmptyFrame()];
+        currentFrameIndex = 0;
+        history = [];
+        historyStep = -1;
+        saveHistory();
+        render();
+        updateFramesTimeline();
+      };
+
+      // Toggle Grade
+      document.getElementById('toggleGrid').onclick = () => {
+        showGrid = !showGrid;
+        document.getElementById('toggleGrid').innerText = `🌐 Grade: ${showGrid ? 'ON' : 'OFF'}`;
+        render();
+      };
+
+      // Desfazer / Refazer / Limpar
+      document.getElementById('btnUndo').onclick = undo;
+      document.getElementById('btnRedo').onclick = redo;
+      document.getElementById('btnClear').onclick = () => {
+        frames[currentFrameIndex] = createEmptyFrame();
+        saveHistory();
+        render();
+        updateFramesTimeline();
+      };
+
+      // Botões da Seleção
+      document.getElementById('btnDeleteSel').onclick = deleteSelection;
+      document.getElementById('btnCopySel').onclick = copySelection;
+      document.getElementById('btnCutSel').onclick = () => {
+        copySelection();
+        deleteSelection();
+      };
+
+      // Timeline Controles
+      document.getElementById('btnAddFrame').onclick = () => {
+        frames.push(createEmptyFrame());
+        currentFrameIndex = frames.length - 1;
+        saveHistory();
+        render();
+        updateFramesTimeline();
+      };
+
+      document.getElementById('btnDuplicateFrame').onclick = () => {
+        const copy = JSON.parse(JSON.stringify(frames[currentFrameIndex]));
+        frames.splice(currentFrameIndex + 1, 0, copy);
+        currentFrameIndex++;
+        saveHistory();
+        render();
+        updateFramesTimeline();
+      };
+
+      document.getElementById('btnDeleteFrame').onclick = () => {
+        if (frames.length > 1) {
+          frames.splice(currentFrameIndex, 1);
+          currentFrameIndex = Math.max(0, currentFrameIndex - 1);
+          render();
+          updateFramesTimeline();
+        }
+      };
+
+      // Onion Skin
+      document.getElementById('btnOnion').onclick = () => {
+        onionSkin = !onionSkin;
+        document.getElementById('btnOnion').innerText = `🧅 Onion Skin: ${onionSkin ? 'ON' : 'OFF'}`;
+        render();
+      };
+
+      // Reprodução da Animação
+      document.getElementById('btnPlay').onclick = () => {
+        isPlaying = !isPlaying;
+        const btn = document.getElementById('btnPlay');
+        if (isPlaying) {
+          btn.innerText = '⏸️ Pausar';
+          playInterval = setInterval(() => {
+            currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+            render();
+            updateFramesTimeline();
+          }, 1000 / fps);
+        } else {
+          btn.innerText = '▶️ Reproduzir';
+          clearInterval(playInterval);
+        }
+      };
+
+      document.getElementById('fpsInput').onchange = (e) => {
+        fps = parseInt(e.target.value);
+        if (isPlaying) {
+          clearInterval(playInterval);
+          playInterval = setInterval(() => {
+            currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+            render();
+            updateFramesTimeline();
+          }, 1000 / fps);
+        }
+      };
+
+      // Exportar PNG
+      document.getElementById('exportPNG').onclick = () => {
+        const link = document.createElement('a');
+        link.download = `pixel-art-frame-${currentFrameIndex + 1}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+      };
+    }
+
+    // Inicializar ao carregar
+    window.onload = init;
+  </script>
+</body>
+</html>
